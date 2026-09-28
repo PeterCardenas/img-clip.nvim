@@ -140,6 +140,25 @@ describe("clipboard", function()
 
       assert.is_true(clipboard.save_image("/path/to/image.png"))
     end)
+
+    it("saves asynchronously and reports completion without waiting", function()
+      local complete
+      local result
+      util.execute_async = function(command, callback)
+        assert(command:match("wl%-paste"))
+        assert(command:match('"/path/to/image.png"'))
+        complete = callback
+      end
+
+      clipboard.save_image_async("/path/to/image.png", function(success)
+        result = success
+      end)
+      assert.is_nil(result)
+      complete(0)
+      assert.is_true(result)
+      complete(1)
+      assert.is_false(result)
+    end)
   end)
 
   -- MacOS
@@ -153,7 +172,7 @@ describe("clipboard", function()
           return nil
         end
         util.executable = function(cmd)
-          return cmd == "pngpaste" 
+          return cmd == "pngpaste"
         end
       end)
 

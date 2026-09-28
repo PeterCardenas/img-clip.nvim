@@ -74,6 +74,33 @@ describe("util", function()
     end)
   end)
 
+  describe("execute_async", function()
+    it("returns before the command completes and reports its exit code", function()
+      local original_system = vim.system
+      local received
+      local finish
+      vim.system = function(argv, _, callback)
+        assert.is_true(table.concat(argv, " "):match("echo image") ~= nil)
+        finish = callback
+      end
+      local ok, err = pcall(function()
+        util.execute_async("echo image", function(code)
+          received = code
+        end)
+        assert.is_nil(received)
+        finish({ code = 0 })
+        assert.is_true(vim.wait(1000, function()
+          return received ~= nil
+        end))
+        assert.equals(0, received)
+      end)
+      vim.system = original_system
+      if not ok then
+        error(err)
+      end
+    end)
+  end)
+
   describe("is_image_path", function()
     it("should return true for a valid image path", function()
       assert.is_true(util.is_image_path("/path/to/image.png"))

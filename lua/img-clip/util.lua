@@ -8,9 +8,8 @@ M.verbose = true
 
 ---@param input_cmd string
 ---@param execute_directly? boolean
----@return string | nil output
----@return number exit_code
-M.execute = function(input_cmd, execute_directly)
+---@return string command
+local function shell_command(input_cmd, execute_directly)
   local shell = vim.o.shell:lower()
   local cmd
 
@@ -37,15 +36,31 @@ M.execute = function(input_cmd, execute_directly)
     cmd = "sh -c " .. vim.fn.shellescape(input_cmd)
   end
 
+  return cmd
+end
+
+M.execute = function(input_cmd, execute_directly)
+  local cmd = shell_command(input_cmd, execute_directly)
   local output = vim.fn.system(cmd)
   local exit_code = vim.v.shell_error
 
-  debug.log("Shell: " .. shell)
+  debug.log("Shell: " .. vim.o.shell:lower())
   debug.log("Command: " .. cmd)
   debug.log("Exit code: " .. exit_code)
   debug.log("Output: " .. output)
 
   return output, exit_code
+end
+
+---@param input_cmd string
+---@param callback fun(exit_code: number)
+M.execute_async = function(input_cmd, callback)
+  local cmd = shell_command(input_cmd)
+  vim.system({ vim.o.shell, vim.o.shellcmdflag, cmd }, {}, function(result)
+    vim.schedule(function()
+      callback(result.code)
+    end)
+  end)
 end
 
 M.executable = function(command)

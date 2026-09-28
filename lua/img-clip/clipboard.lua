@@ -63,43 +63,55 @@ M.content_is_image = function()
   return false
 end
 
-M.save_image = function(file_path)
+local function save_image_command(file_path)
   local cmd = M.get_clip_cmd()
   local process_cmd = config.get_opt("process_cmd")
   if process_cmd ~= "" then
     process_cmd = "| " .. process_cmd .. " "
   end
 
-  -- Linux (X11)
+  -- Keep synchronous and asynchronous pastes on the same platform command.
   if cmd == "xclip" then
-    local command =
-      string.format('xclip -selection clipboard -o -t image/png %s> "%s"', process_cmd:gsub("%%", "%%%%"), file_path)
-    local _, exit_code = util.execute(command)
-    return exit_code == 0
-
-  -- Linux (Wayland)
+    return string.format(
+      'xclip -selection clipboard -o -t image/png %s> "%s"',
+      process_cmd:gsub("%%", "%%%%"),
+      file_path
+    )
   elseif cmd == "wl-paste" then
-    local command = string.format('wl-paste --type image/png %s> "%s"', process_cmd:gsub("%%", "%%%%"), file_path)
-    local _, exit_code = util.execute(command)
-    return exit_code == 0
-
-  -- MacOS (pngpaste)
+    return string.format('wl-paste --type image/png %s> "%s"', process_cmd:gsub("%%", "%%%%"), file_path)
   elseif cmd == "pngpaste" then
-    local command = string.format('pngpaste - %s> "%s"', process_cmd:gsub("%%", "%%%%"), file_path)
-    local _, exit_code = util.execute(command)
-    return exit_code == 0
-
-  -- Windows
+    return string.format('pngpaste - %s> "%s"', process_cmd:gsub("%%", "%%%%"), file_path)
   elseif cmd == "powershell.exe" then
-    local command = string.format(
+    return string.format(
       "Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.Clipboard]::GetImage().Save('%s')",
       file_path
     )
-    local _, exit_code = util.execute(command)
-    return exit_code == 0
   end
+  return nil
+end
 
-  return false
+M.save_image = function(file_path)
+  local command = save_image_command(file_path)
+  if not command then
+    return false
+  end
+  local _, exit_code = util.execute(command)
+  return exit_code == 0
+end
+
+---@param file_path string
+---@param callback fun(success: boolean)
+M.save_image_async = function(file_path, callback)
+  local command = save_image_command(file_path)
+  if not command then
+    vim.schedule(function()
+      callback(false)
+    end)
+    return
+  end
+  util.execute_async(command, function(exit_code)
+    callback(exit_code == 0)
+  end)
 end
 
 ---@return string | nil
